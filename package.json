@@ -2,10 +2,10 @@
   "name": "instaclone-api",
   "version": "1.0.0",
   "description": "",
-  "main": "app.js",
+  "main": "App.js",
   "scripts": {
-      "dev": "nodemon App.js",
-    "start": "node App.js"
+      "dev": "nodemon api/App.js",
+      "start": "node api/App.js"
   },
   "author": "sree",
   "license": "ISC",
