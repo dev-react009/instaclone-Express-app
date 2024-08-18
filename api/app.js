@@ -1,34 +1,30 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const app = express();
+const cloudinary = require('cloudinary').v2;
 const Post = require('./model/post');
-const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
+const fileUpload = require('express-fileupload'); // Add this line
 
-const photo = path.join(__dirname, 'upload');
+const app = express();
+
+// Cloudinary configuration
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Use express-fileupload middleware
+app.use(fileUpload({
+    useTempFiles: true,
+    tempFileDir: '/tmp/'
+}));
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(photo));
-
-
-// Serve static files from the React app
-app.use(express.static(path.join(__dirname, '../client/build')));
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'upload');
-    },
-    filename: function (req, file, cb) {
-        const fileNameArr = file.originalname.split('.');
-        cb(null, file.fieldname + '-' + Date.now() + '.' + fileNameArr[fileNameArr.length - 1]);
-    }
-});
-
-const upload = multer({ storage: storage });
 
 async function connectDB() {
     const URI = process.env.MONGO_URI;
@@ -57,23 +53,32 @@ async function main() {
         res.send(posts);
     });
 
-    app.post('/api/add/post', upload.single('image'), async function (req, res) {
-        const { author, location, description,date} = req.body;
-        const image = req.file.filename;
-
-        const post = new Post({
-            author: author,
-            location: location,
-            description: description,
-            image: image,
-            date: date  
-        });
-
+    app.post('/api/add/post', async function (req, res) {
         try {
-            const savedValue = await post.save();
-            res.json(savedValue);
+            const { author, location, description, date } = req.body;
+            const file = req.files.image; // Accessing the uploaded image file
+
+            if (file) {
+                // Upload the image to Cloudinary
+                const result = await cloudinary.uploader.upload(file.tempFilePath);
+                console.log(result)
+                // Create a new post with the uploaded image URL
+                const post = new Post({
+                    author: author,
+                    location: location,
+                    description: description,
+                    image: result.secure_url, // Use the secure URL from Cloudinary
+                    date: date
+                });
+
+                // Save the post to MongoDB
+                const savedValue = await post.save();
+                res.json(savedValue);
+            } else {
+                res.status(400).send({ message: 'No image file uploaded' });
+            }
         } catch (error) {
-            res.json({ message: error.message });
+            res.status(500).json({ message: error.message });
         }
     });
 
